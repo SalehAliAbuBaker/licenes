@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>إدارة وتوزيع تراخيص «راتب»</title>
+    <title>إدارة وتوزيع تراخيص «راتب» السحابية</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @media print {
@@ -33,17 +33,15 @@
     <div id="mainContent" class="max-w-5xl mx-auto bg-white shadow-lg rounded-2xl p-6 hidden">
         <header class="border-b pb-4 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div>
-                <h1 class="text-2xl font-bold text-emerald-700">إدارة وتوزيع تراخيص «راتب» للأجهزة</h1>
-                <p class="text-sm text-gray-500 mt-1">إضافة الأكواد الرئيسية وتتبع توزيعها وإصدار التقارير.</p>
+                <h1 class="text-2xl font-bold text-emerald-700">إدارة وتوزيع تراخيص «راتب»</h1>
+                <p class="text-sm text-gray-500 mt-1">إدارة الأكواد، الأجهزة، والمزامنة عبر GitHub Gist.</p>
             </div>
             <div class="flex gap-2 flex-wrap">
+                <button onclick="openSyncModal()" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-xl text-sm font-medium transition">إعدادات المزامنة</button>
+                <button onclick="syncFromCloud()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl text-sm font-medium transition" title="جلب أحدث بيانات من السحابة">سحب سحابي</button>
                 <button onclick="openReportModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl text-sm font-medium transition">تقرير المفاتيح</button>
                 <button onclick="openPasswordModal()" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 rounded-xl text-sm font-medium transition">كلمة المرور</button>
-                <button onclick="exportData()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-sm font-medium transition">تصدير</button>
-                <label class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-xl text-sm font-medium cursor-pointer transition">
-                    استيراد
-                    <input type="file" id="importFile" accept=".json" onchange="importData(event)" class="hidden">
-                </label>
+                <button onclick="exportData()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-sm font-medium transition">ملف محلي</button>
                 <button onclick="logout()" class="bg-red-50 hover:bg-red-100 text-red-600 px-3 py-2 rounded-xl text-sm font-medium transition">قفل</button>
             </div>
         </header>
@@ -120,6 +118,28 @@
         </div>
     </div>
 
+    <!-- نافذة إعدادات المزامنة السحابية -->
+    <div id="syncModal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
+            <h3 class="text-lg font-bold text-gray-800 mb-2">إعدادات مزامنة GitHub Gist</h3>
+            <p class="text-xs text-gray-500 mb-4">ضع بيانات الـ Gist الخاص بك لتتمكن من المزامنة بين الكمبيوتر والجوال.</p>
+            <form onsubmit="saveSyncSettings(event)">
+                <div class="mb-3">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">معرف Gist ID</label>
+                    <input type="text" id="gistIdInput" placeholder="مثال: a1b2c3d4e5..." class="w-full border rounded-lg px-3 py-2 text-sm outline-none font-mono">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">رمز الوصول GitHub Token (Personal Access Token)</label>
+                    <input type="password" id="gistTokenInput" placeholder="ghp_xxxxxxxxxxxx" class="w-full border rounded-lg px-3 py-2 text-sm outline-none font-mono">
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('syncModal')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-xl text-sm transition">إلغاء</button>
+                    <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm transition">حفظ الإعدادات</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- نافذة تقرير المفاتيح والمستخدمين -->
     <div id="reportModal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-xl max-h-[90vh] flex flex-col">
@@ -130,16 +150,17 @@
                     <button onclick="closeModal('reportModal')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-xs transition">إغلاق</button>
                 </div>
             </div>
-            <div id="reportSection" class="overflow-y-auto flex-1 space-y-4 text-xs sm:text-sm">
-                <!-- يُعبأ بالتقرير -->
-            </div>
+            <div id="reportSection" class="overflow-y-auto flex-1 space-y-4 text-xs sm:text-sm"></div>
         </div>
     </div>
 
     <script>
-        // إعداد كلمة المرور (الافتراضية 1234 أو المحفوظة)
         let adminPin = localStorage.getItem('ratib_admin_pin') || "1234";
         let licenses = JSON.parse(localStorage.getItem('ratib_multi_licenses')) || [];
+        
+        // إعدادات Gist
+        let gistId = localStorage.getItem('ratib_gist_id') || "";
+        let gistToken = localStorage.getItem('ratib_gist_token') || "";
 
         if (sessionStorage.getItem('ratib_logged_in') === 'true') {
             showApp();
@@ -151,6 +172,8 @@
             if (pin === adminPin) {
                 sessionStorage.setItem('ratib_logged_in', 'true');
                 showApp();
+                // محاولة سحب التحديثات تلقائياً عند الدخول إذا وُجدت الإعدادات
+                if(gistId && gistToken) { syncFromCloud(true); }
             } else {
                 const err = document.getElementById('loginError');
                 err.classList.remove('hidden');
@@ -190,6 +213,93 @@
             localStorage.setItem('ratib_admin_pin', adminPin);
             alert('تم تحديث الرقم السري بنجاح!');
             closeModal('passwordModal');
+            syncToCloud();
+        }
+
+        function openSyncModal() {
+            document.getElementById('gistIdInput').value = gistId;
+            document.getElementById('gistTokenInput').value = gistToken;
+            document.getElementById('syncModal').classList.remove('hidden');
+        }
+
+        function saveSyncSettings(e) {
+            e.preventDefault();
+            gistId = document.getElementById('gistIdInput').value.trim();
+            gistToken = document.getElementById('gistTokenInput').value.trim();
+            localStorage.setItem('ratib_gist_id', gistId);
+            localStorage.setItem('ratib_gist_token', gistToken);
+            alert('تم حفظ إعدادات المزامنة بنجاح!');
+            closeModal('syncModal');
+            syncFromCloud();
+        }
+
+        // رفع البيانات إلى GitHub Gist
+        async function syncToCloud() {
+            if (!gistId || !gistToken) return;
+            const dataToSync = {
+                pin: adminPin,
+                licenses: licenses,
+                updatedAt: new Date().toISOString()
+            };
+            try {
+                const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `token ${gistToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        files: {
+                            "ratib_licenses_data.json": {
+                                content: JSON.stringify(dataToSync, null, 2)
+                            }
+                        }
+                    })
+                });
+                if(!response.ok) console.error('فشل الرفع السحابي');
+            } catch (err) {
+                console.error('خطأ في الاتصال بالإنترنت للمزامنة');
+            }
+        }
+
+        // سحب البيانات من GitHub Gist
+        async function syncFromCloud(silent = false) {
+            if (!gistId || !gistToken) {
+                if(!silent) alert('يرجى ضبط إعدادات Gist أولاً من زر "إعدادات المزامنة".');
+                return;
+            }
+            try {
+                const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+                    headers: { 'Authorization': `token ${gistToken}` }
+                });
+                if(response.ok) {
+                    const result = await response.json();
+                    const file = result.files["ratib_licenses_data.json"];
+                    if(file) {
+                        const parsed = JSON.parse(file.content);
+                        if(parsed.licenses) {
+                            licenses = parsed.licenses;
+                            localStorage.setItem('ratib_multi_licenses', JSON.stringify(licenses));
+                        }
+                        if(parsed.pin) {
+                            adminPin = parsed.pin;
+                            localStorage.setItem('ratib_admin_pin', adminPin);
+                        }
+                        renderApp();
+                        if(!silent) alert('تم جلب وتحديث البيانات من السحابة بنجاح!');
+                    }
+                } else {
+                    if(!silent) alert('فشل الاتصال بـ Gist، تأكد من صحة المعرف والرمز.');
+                }
+            } catch(err) {
+                if(!silent) alert('حدث خطأ أثناء الاتصال بالإنترنت.');
+            }
+        }
+
+        function saveLocalAndSync() {
+            localStorage.setItem('ratib_multi_licenses', JSON.stringify(licenses));
+            renderApp();
+            syncToCloud(); // مزامنة تلقائية في الخلفية
         }
 
         function openReportModal() {
@@ -245,10 +355,9 @@
             }
 
             licenses.unshift({ key, maxDevices, note, date: new Date().toLocaleDateString('ar-SA'), devices: [] });
-            localStorage.setItem('ratib_multi_licenses', JSON.stringify(licenses));
             document.getElementById('licenseForm').reset();
             document.getElementById('maxDevices').value = 1;
-            renderApp();
+            saveLocalAndSync();
         }
 
         function openModal(key) {
@@ -276,9 +385,8 @@
             const license = licenses.find(l => l.key === key);
             if (license) {
                 license.devices.push({ owner, device, assignedDate: new Date().toLocaleDateString('ar-SA') });
-                localStorage.setItem('ratib_multi_licenses', JSON.stringify(licenses));
                 closeModal('deviceModal');
-                renderApp();
+                saveLocalAndSync();
             }
         }
 
@@ -287,8 +395,7 @@
                 const license = licenses.find(l => l.key === key);
                 if (license) {
                     license.devices.splice(index, 1);
-                    localStorage.setItem('ratib_multi_licenses', JSON.stringify(licenses));
-                    renderApp();
+                    saveLocalAndSync();
                 }
             }
         }
@@ -296,8 +403,7 @@
         function deleteMainLicense(key) {
             if (confirm('هل أنت متأكد من حذف هذا الكود الرئيسي وكل قيوده؟')) {
                 licenses = licenses.filter(l => l.key !== key);
-                localStorage.setItem('ratib_multi_licenses', JSON.stringify(licenses));
-                renderApp();
+                saveLocalAndSync();
             }
         }
 
@@ -379,32 +485,6 @@
             document.body.appendChild(downloadAnchor);
             downloadAnchor.click();
             downloadAnchor.remove();
-        }
-
-        function importData(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const imported = JSON.parse(e.target.result);
-                    if (Array.isArray(imported)) {
-                        licenses = imported;
-                    } else if (imported.licenses) {
-                        licenses = imported.licenses;
-                        if(imported.pin) {
-                            adminPin = imported.pin;
-                            localStorage.setItem('ratib_admin_pin', adminPin);
-                        }
-                    }
-                    localStorage.setItem('ratib_multi_licenses', JSON.stringify(licenses));
-                    renderApp();
-                    alert('تم استيراد البيانات بنجاح!');
-                } catch(err) {
-                    alert('خطأ في قراءة الملف.');
-                }
-            };
-            reader.readAsText(file);
         }
     </script>
 </body>
