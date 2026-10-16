@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>إدارة وتوزيع تراخيص «راتب»</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            body * { visibility: hidden; }
+            #reportSection, #reportSection * { visibility: visible; }
+            #reportSection { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+    </style>
 </head>
 <body class="bg-gray-50 text-gray-800 font-sans min-h-screen p-4 sm:p-6">
 
@@ -27,9 +34,11 @@
         <header class="border-b pb-4 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div>
                 <h1 class="text-2xl font-bold text-emerald-700">إدارة وتوزيع تراخيص «راتب» للأجهزة</h1>
-                <p class="text-sm text-gray-500 mt-1">إضافة الأكواد الرئيسية وتتبع توزيعها على المستخدمين والأجهزة.</p>
+                <p class="text-sm text-gray-500 mt-1">إضافة الأكواد الرئيسية وتتبع توزيعها وإصدار التقارير.</p>
             </div>
             <div class="flex gap-2 flex-wrap">
+                <button onclick="openReportModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl text-sm font-medium transition">تقرير المفاتيح</button>
+                <button onclick="openPasswordModal()" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 rounded-xl text-sm font-medium transition">كلمة المرور</button>
                 <button onclick="exportData()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-sm font-medium transition">تصدير</button>
                 <label class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-xl text-sm font-medium cursor-pointer transition">
                     استيراد
@@ -68,7 +77,7 @@
         <div id="emptyState" class="text-center py-12 text-gray-400 text-sm hidden">لا توجد أكواد مسجلة حتى الآن. أضف كوداً رئيسياً للبدء.</div>
     </div>
 
-    <!-- نافذة منبثقة لربط جهاز -->
+    <!-- نافذة ربط جهاز -->
     <div id="deviceModal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
             <h3 class="text-lg font-bold text-gray-800 mb-4">قيد جهاز جديد لهذا الكود</h3>
@@ -83,20 +92,55 @@
                     <input type="text" id="assignDevice" placeholder="مثال: جوال سامسونج / لابتوب" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
                 </div>
                 <div class="flex justify-end gap-2">
-                    <button type="button" onclick="closeModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-xl text-sm transition">إلغاء</button>
+                    <button type="button" onclick="closeModal('deviceModal')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-xl text-sm transition">إلغاء</button>
                     <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm transition">حفظ القيد</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <script>
-        // ضع الرقم السري الذي تحبه هنا (افتراضياً: 1234)
-        const ADMIN_PIN = "1234";
+    <!-- نافذة تغيير كلمة المرور -->
+    <div id="passwordModal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">تغيير الرقم السري</h3>
+            <form onsubmit="updatePassword(event)">
+                <div class="mb-3">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">الرقم السري الحالي</label>
+                    <input type="password" id="currentPin" required class="w-full border rounded-lg px-3 py-2 text-sm outline-none">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">الرقم السري الجديد</label>
+                    <input type="password" id="newPin" required class="w-full border rounded-lg px-3 py-2 text-sm outline-none">
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('passwordModal')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-xl text-sm transition">إلغاء</button>
+                    <button type="submit" class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl text-sm transition">تحديث</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
+    <!-- نافذة تقرير المفاتيح والمستخدمين -->
+    <div id="reportModal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-xl max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b pb-3 mb-4">
+                <h3 class="text-lg font-bold text-gray-800">تقرير المفاتيح والأجهزة المرتبطة</h3>
+                <div class="flex gap-2">
+                    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs transition">طباعة / PDF</button>
+                    <button onclick="closeModal('reportModal')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-xs transition">إغلاق</button>
+                </div>
+            </div>
+            <div id="reportSection" class="overflow-y-auto flex-1 space-y-4 text-xs sm:text-sm">
+                <!-- يُعبأ بالتقرير -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // إعداد كلمة المرور (الافتراضية 1234 أو المحفوظة)
+        let adminPin = localStorage.getItem('ratib_admin_pin') || "1234";
         let licenses = JSON.parse(localStorage.getItem('ratib_multi_licenses')) || [];
 
-        // التحقق من حالة تسجيل الدخول المخزنة في الجلسة
         if (sessionStorage.getItem('ratib_logged_in') === 'true') {
             showApp();
         }
@@ -104,7 +148,7 @@
         function handleLogin(e) {
             e.preventDefault();
             const pin = document.getElementById('pinCode').value;
-            if (pin === ADMIN_PIN) {
+            if (pin === adminPin) {
                 sessionStorage.setItem('ratib_logged_in', 'true');
                 showApp();
             } else {
@@ -127,6 +171,68 @@
             document.getElementById('loginScreen').classList.remove('hidden');
         }
 
+        function openPasswordModal() {
+            document.getElementById('currentPin').value = '';
+            document.getElementById('newPin').value = '';
+            document.getElementById('passwordModal').classList.remove('hidden');
+        }
+
+        function updatePassword(e) {
+            e.preventDefault();
+            const current = document.getElementById('currentPin').value;
+            const updated = document.getElementById('newPin').value;
+
+            if (current !== adminPin) {
+                alert('الرقم السري الحالي غير صحيح!');
+                return;
+            }
+            adminPin = updated;
+            localStorage.setItem('ratib_admin_pin', adminPin);
+            alert('تم تحديث الرقم السري بنجاح!');
+            closeModal('passwordModal');
+        }
+
+        function openReportModal() {
+            const reportContainer = document.getElementById('reportSection');
+            reportContainer.innerHTML = '';
+
+            if (licenses.length === 0) {
+                reportContainer.innerHTML = '<p class="text-center text-gray-400 py-6">لا توجد بيانات مسجلة لعرض التقرير.</p>';
+            } else {
+                let html = `
+                    <div class="mb-4 text-center">
+                        <h2 class="font-bold text-base text-emerald-800">تراخيص «راتب» - السجل العام للأجهزة</h2>
+                        <p class="text-gray-500 text-xs">تاريخ التقرير: ${new Date().toLocaleDateString('ar-SA')}</p>
+                    </div>
+                `;
+
+                licenses.forEach((item, idx) => {
+                    const used = item.devices.length;
+                    html += `
+                        <div class="border rounded-xl p-3 bg-gray-50 mb-3">
+                            <div class="flex justify-between font-bold border-b pb-1 text-emerald-900">
+                                <span>${idx + 1}. الكود: ${item.key}</span>
+                                <span>المستهلك: ${used} / ${item.maxDevices}</span>
+                            </div>
+                            <p class="text-xs text-gray-600 mt-1">ملاحظات/المدة: ${item.note || '—'}</p>
+                    `;
+
+                    if (item.devices.length > 0) {
+                        html += `<div class="mt-2 space-y-1 pl-2 border-r-2 border-emerald-500">`;
+                        item.devices.forEach((d, dIdx) => {
+                            html += `<div class="text-xs text-gray-700">جهاز (${dIdx + 1}): <span class="font-bold">${d.owner}</span> - (${d.device || 'بدون تفاصيل'}) [تاريخ: ${d.assignedDate}]</div>`;
+                        });
+                        html += `</div>`;
+                    } else {
+                        html += `<p class="text-xs text-gray-400 italic mt-1">لم يتم ربط أجهزة بهذا الكود بعد.</p>`;
+                    }
+                    html += `</div>`;
+                });
+                reportContainer.innerHTML = html;
+            }
+            document.getElementById('reportModal').classList.remove('hidden');
+        }
+
         function saveMainLicense(e) {
             e.preventDefault();
             const key = document.getElementById('mainKey').value.trim();
@@ -138,14 +244,7 @@
                 return;
             }
 
-            licenses.unshift({
-                key,
-                maxDevices,
-                note,
-                date: new Date().toLocaleDateString('ar-SA'),
-                devices: []
-            });
-
+            licenses.unshift({ key, maxDevices, note, date: new Date().toLocaleDateString('ar-SA'), devices: [] });
             localStorage.setItem('ratib_multi_licenses', JSON.stringify(licenses));
             document.getElementById('licenseForm').reset();
             document.getElementById('maxDevices').value = 1;
@@ -164,8 +263,8 @@
             document.getElementById('deviceModal').classList.remove('hidden');
         }
 
-        function closeModal() {
-            document.getElementById('deviceModal').classList.add('hidden');
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
         }
 
         function saveDeviceAssignment(e) {
@@ -176,13 +275,9 @@
 
             const license = licenses.find(l => l.key === key);
             if (license) {
-                license.devices.push({
-                    owner,
-                    device,
-                    assignedDate: new Date().toLocaleDateString('ar-SA')
-                });
+                license.devices.push({ owner, device, assignedDate: new Date().toLocaleDateString('ar-SA') });
                 localStorage.setItem('ratib_multi_licenses', JSON.stringify(licenses));
-                closeModal();
+                closeModal('deviceModal');
                 renderApp();
             }
         }
@@ -277,10 +372,10 @@
         }
 
         function exportData() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(licenses, null, 2));
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ pin: adminPin, licenses: licenses }, null, 2));
             const downloadAnchor = document.createElement('a');
             downloadAnchor.setAttribute("href", dataStr);
-            downloadAnchor.setAttribute("download", "ratib_multi_licenses_backup.json");
+            downloadAnchor.setAttribute("download", "ratib_system_backup.json");
             document.body.appendChild(downloadAnchor);
             downloadAnchor.click();
             downloadAnchor.remove();
@@ -295,12 +390,16 @@
                     const imported = JSON.parse(e.target.result);
                     if (Array.isArray(imported)) {
                         licenses = imported;
-                        localStorage.setItem('ratib_multi_licenses', JSON.stringify(licenses));
-                        renderApp();
-                        alert('تم استيراد البيانات بنجاح!');
-                    } else {
-                        alert('ملف غير صالح.');
+                    } else if (imported.licenses) {
+                        licenses = imported.licenses;
+                        if(imported.pin) {
+                            adminPin = imported.pin;
+                            localStorage.setItem('ratib_admin_pin', adminPin);
+                        }
                     }
+                    localStorage.setItem('ratib_multi_licenses', JSON.stringify(licenses));
+                    renderApp();
+                    alert('تم استيراد البيانات بنجاح!');
                 } catch(err) {
                     alert('خطأ في قراءة الملف.');
                 }
